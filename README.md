@@ -1,10 +1,11 @@
 ## SnapChat Public profile scraper
 
-## Very simple SnapChat scraper for public profiles. 
+## Very simple SnapChat scraper for public profiles built with Go
 #### - Downloads stories, highlights, spotlights and curated highlights
 #### - Name files by ID, and checks for existing files before  trying to download, aka no overwrites
 #### - Can run on a given interval (minutes), for as many users as you want
-### Bugs? Feature request? Create an issue
+#### - Bugs? Feature request? Create an issue
+#### - Easily build small and portable executables using Go
 ---
 ### Usage
 
