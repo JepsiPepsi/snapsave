@@ -11,6 +11,7 @@
 
 | Flag       | Behaviour                                                               | Default   | Type   |
 |------------|-------------------------------------------------------------------------|-----------|--------|
+| --user     | Specify a list of users, comma seperated                                | N/A       | string |
 | --interval | Sets run interval in minutes                                            | 0         | int    |
 | --userfile | Specify path to a .txt file to read username from (Seperated by newline | users.txt | string |
 | --output   | Specify output directory                                                | ./        | string |
