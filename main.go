@@ -133,18 +133,20 @@ func startScraper(config *Config) {
 		config.UserCount++
 		bar.Reset()
 
-		user, exists := config.Users[u]
-		if exists {
-			user.TotalDownloads = 0
-			user.NewDownloads = 0
-			config.Users[u] = user
-		}
 	}
 
 	log.Info("Scraping complete\n")
 	for u := range config.Users {
 		fmt.Printf("User %s has %v new downloads\n", u, config.Users[u].NewDownloads)
 	}
+
+	for u := range config.Users {
+		user := config.Users[u]
+		user.TotalDownloads = 0
+		user.NewDownloads = 0
+		config.Users[u] = user
+	}
+
 	config.UserCount = 1
 	fmt.Println("Total time: ", time.Since(timer))
 }
