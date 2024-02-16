@@ -21,7 +21,7 @@ type User struct {
 	Username       string
 	TotalDownloads int
 	NewDownloads   int
-	Data           string
+	FilesExisted   int
 }
 
 type Config struct {
@@ -137,13 +137,14 @@ func startScraper(config *Config) {
 
 	log.Info("Scraping complete\n")
 	for u := range config.Users {
-		fmt.Printf("User %s has %v new downloads\n", u, config.Users[u].NewDownloads)
+		fmt.Printf("User %s has %v new downloads. %v already existed.\n", u, config.Users[u].NewDownloads, config.Users[u].FilesExisted)
 	}
 
 	for u := range config.Users {
 		user := config.Users[u]
 		user.TotalDownloads = 0
 		user.NewDownloads = 0
+		user.FilesExisted = 0
 		config.Users[u] = user
 	}
 
@@ -245,10 +246,10 @@ func scrapeData(s string, config *Config, u string, b *progressbar.ProgressBar) 
 	spotlightStoryMetadata.ForEach(func(key, value gjson.Result) bool {
 
 		snap.SnapType = "spotlightStory"
-		snapId := value.Get("videoMetadata.uploadDateMs").String()
+		snap.SnapID = value.Get("videoMetadata.uploadDateMs").String()
 
-		if snapId == "" {
-			snapId = time.RFC3339Nano
+		if snap.SnapID == "" {
+			snap.SnapID = time.RFC3339Nano
 		}
 
 		snap.MediaURL = value.Get("videoMetadata.contentUrl").String()
@@ -397,6 +398,9 @@ func processSnap(s Snap, config *Config, u string) {
 	path := filepath.Join(dir, fmt.Sprintf("%s-%s%s", s.SnapID, s.Index, s.FileExt))
 
 	if _, err := os.Stat(path); err == nil {
+		user := config.Users[u]
+		user.FilesExisted++
+		config.Users[u] = user
 		return
 	} else if !os.IsNotExist(err) {
 		fmt.Printf("Failed to check if file exists: %v\n", err)
