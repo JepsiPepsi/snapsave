@@ -13,7 +13,7 @@
 |------------|-------------------------------------------------------------------------|-----------|--------|
 | --user     | Specify a list of users, comma seperated                                | N/A       | string |
 | --interval | Sets run interval in minutes                                            | 0         | int    |
-| --userfile | Specify path to a .txt file to read username from (Seperated by newline | users.txt | string |
+| --file     | Specify path to a .txt file to read username from (Seperated by newline | users.txt | string |
 | --output   | Specify output directory                                                | ./        | string |
 | [username] | Scrapes data for a single user                                          | -         | -      |
 
