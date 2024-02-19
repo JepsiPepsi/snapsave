@@ -40,7 +40,7 @@ export GOPATH="$HOME/go"
 
 ```bash
 git clone git@github.com:JepsiPepsi/snapsave.git &&
-cd value-chain-monitor &&
+cd snapsave &&
 go run main.go
 ```
 #### Build program
