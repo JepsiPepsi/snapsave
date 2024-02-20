@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ type Snap struct {
 	Username      string
 	Directory     string
 	FileExt       string
+	UnixTime      int64
 }
 
 const (
@@ -53,16 +55,17 @@ func main() {
 }
 
 func getUserInput() {
-	filePath := flag.String("file", "", "Path to the file containing usernames. ENV variable USER_FILE")
-	intervalFlag := flag.Int("interval", 0, "Interval for scraping in hours. ENV variable: INTERVAL")
-	outputDir := flag.String("output", ".", "Output directory for scraped data. ENV variable: DOWNLOAD_DIR")
+	// Define flags
+	filePath := flag.String("file", "", "Path to the file containing usernames.")
+	intervalFlag := flag.Int("interval", 0, "Interval for scraping in hours.")
+	outputDir := flag.String("output", ".", "Output directory for scraped data.")
 	user := flag.String("user", "", "Specify a user to scrape, comma-separated for multiple users.")
-
 	help := flag.Bool("help", false, "Show help message")
 
+	// Parse flags
 	flag.Parse()
 
-	// Show help message
+	// Show help message if --help is provided
 	if *help {
 		flag.Usage()
 		return
@@ -71,19 +74,39 @@ func getUserInput() {
 	// Initialize the config struct
 	config := &Config{}
 
-	// Default config setup
+	// Attempt to load environment variables if flags are not set
+	if *filePath == "" {
+		*filePath = os.Getenv("USER_FILE")
+	}
+	if *intervalFlag == 0 {
+		if intervalEnv, ok := os.LookupEnv("INTERVAL"); ok {
+			if interval, err := strconv.Atoi(intervalEnv); err == nil {
+				*intervalFlag = interval
+			}
+		}
+	}
+	if *outputDir == "." {
+		if dirEnv := os.Getenv("DOWNLOAD_DIR"); dirEnv != "" {
+			*outputDir = dirEnv
+		}
+	}
+	if *user == "" {
+		*user = os.Getenv("SNAP_USERS")
+	}
+
+	// Setup config based on flags or environment variables
 	config.Interval = *intervalFlag
 	config.Directory = *outputDir
 	config.UserCount = 1
 
-	// Error if both --file and --user are used
+	// Error handling for mutually exclusive flags
 	if *filePath != "" && *user != "" {
 		fmt.Println("Error: --file and --user flags are mutually exclusive. Please specify only one.")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	// Handling --user flag
+	// Processing --user flag
 	if *user != "" {
 		users := strings.Split(*user, ",")
 		config.Users = make(map[string]User)
@@ -94,7 +117,7 @@ func getUserInput() {
 		startScraper(config)
 	}
 
-	// Handling --file flag
+	// Processing --file flag
 	if *filePath != "" {
 		config.FilePath = *filePath
 		if _, err := getUsersFromFile(config); err != nil {
@@ -107,11 +130,11 @@ func getUserInput() {
 
 	// Interval handling
 	if *intervalFlag != 0 {
-		fmt.Printf("Starting interval scraping, next scrape in %v minutes(s)\n", *intervalFlag)
+		fmt.Printf("Starting interval scraping, next scrape in %v minute(s)\n", *intervalFlag)
 		timer := time.NewTicker(time.Duration(*intervalFlag) * time.Minute)
 		for range timer.C {
 			startScraper(config)
-			fmt.Printf("Starting interval scraping, next scrape in %v minutes(s)\n", *intervalFlag)
+			fmt.Printf("Starting interval scraping, next scrape in %v minute(s)\n", *intervalFlag)
 		}
 	}
 }
@@ -131,8 +154,6 @@ func startScraper(config *Config) {
 		}
 		scrapeData(data, config, config.Users[u].Username, bar)
 		config.UserCount++
-		bar.Reset()
-
 	}
 
 	log.Info("Scraping complete\n")
@@ -167,19 +188,19 @@ func scrapeData(s string, config *Config, u string, b *progressbar.ProgressBar) 
 
 	//Check if the fields are populated
 	if !snapList.Exists() && snapList.String() == "" {
-		fmt.Println("No snaps found for user")
+		log.Infof("User %s has no stories\n", u)
 	}
 
 	if !spotlightHighlights.Exists() && spotlightHighlights.String() == "" {
-		fmt.Println("User has no spotlight highlights")
+		log.Infof("User %s has no spotlight highlights\n", u)
 	}
 
 	if !spotlightStoryMetadata.Exists() && spotlightStoryMetadata.String() == "" {
-		fmt.Println("User has no spotlight story metadata")
+		log.Infof("User %s has no spotlight story metadata\n", u)
 	}
 
 	if !curatedHighlights.Exists() && curatedHighlights.String() == "" {
-		fmt.Println("User has no curated highlights")
+		log.Infof("User %s has no curated highlights\n", u)
 	}
 
 	totalDownloads := 0
@@ -290,6 +311,7 @@ func scrapeData(s string, config *Config, u string, b *progressbar.ProgressBar) 
 
 		snap.SnapType = "story"
 		snap.SnapID = value.Get("snapId.value").String()
+		snap.UnixTime = value.Get("timestampInSec.value").Int()
 
 		if snap.SnapID == "" {
 			snap.SnapID = time.RFC3339Nano
@@ -379,7 +401,9 @@ func newBar(config *Config, u string) *progressbar.ProgressBar {
 		progressbar.OptionShowBytes(false),
 		progressbar.OptionSetWidth(15),
 		progressbar.OptionSetDescription(fmt.Sprintf("[cyan][%v/%v][reset] Scraping... %v", config.UserCount, len(config.Users), u)),
-	)
+		progressbar.OptionOnCompletion(func() {
+			fmt.Printf("\n\n")
+		}))
 	return bar
 }
 
@@ -395,6 +419,20 @@ func processSnap(s Snap, config *Config, u string) {
 	}
 
 	dir := filepath.Join(s.Directory, s.Username, s.SnapType)
+
+	if s.SnapType == "story" {
+		timestamp := time.Unix(s.UnixTime, 0)
+
+		dateStr := timestamp.Format("02-01-2006")
+
+		dir = filepath.Join(dir, dateStr)
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Errorf("Failed to create directory %s: %v\n", dir, err)
+		return
+	}
+
 	path := filepath.Join(dir, fmt.Sprintf("%s-%s%s", s.SnapID, s.Index, s.FileExt))
 
 	if _, err := os.Stat(path); err == nil {
@@ -426,7 +464,6 @@ func downloadFile(u, p string) error {
 
 	out, err := os.Create(p)
 	if err != nil {
-		fmt.Println("Failed to create file")
 		return err
 	}
 
